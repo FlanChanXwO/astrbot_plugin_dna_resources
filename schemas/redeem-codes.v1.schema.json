@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://raw.githubusercontent.com/FlanChanXwO/astrbot_plugin_dna_resources/main/schemas/redeem-codes.v1.schema.json",
+  "title": "DNA redeem codes v1",
+  "description": "公共资源仓库中的兑换码清单。时间字段必须包含时区；valid_from 与 expires_at 同时存在时，前者必须早于后者。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format_version",
+    "data"
+  ],
+  "properties": {
+    "format_version": {
+      "const": 1
+    },
+    "data": {
+      "type": "array",
+      "description": "保留计划中、当前有效和已过期的兑换码；code 的唯一性由契约校验器按条目语义检查。",
+      "items": {
+        "$ref": "#/$defs/redeemCode"
+      },
+      "uniqueItems": true
+    }
+  },
+  "$defs": {
+    "redeemCode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "code"
+      ],
+      "properties": {
+        "code": {
+          "type": "string",
+          "description": "兑换码内容；资源文件中必须已去除首尾空白，不强制转大写。",
+          "minLength": 1,
+          "pattern": "^\\S(?:.*\\S)?$"
+        },
+        "reward": {
+          "type": "string",
+          "description": "可选的奖励说明。"
+        },
+        "valid_from": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$",
+          "description": "可选的生效时间，必须是带时区的 ISO 8601 date-time。"
+        },
+        "expires_at": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "(?:Z|[+-][0-9]{2}:[0-9]{2})$",
+          "description": "可选的失效时间，必须是带时区的 ISO 8601 date-time。"
+        },
+        "platforms": {
+          "type": "array",
+          "description": "可选的适用平台；省略表示来源未注明，不解释为全平台。",
+          "items": {
+            "enum": [
+              "pc",
+              "android",
+              "ios"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "servers": {
+          "type": "array",
+          "description": "可选的适用区服；省略表示来源未注明，不解释为全服。",
+          "items": {
+            "enum": [
+              "cn",
+              "global"
+            ]
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        }
+      }
+    }
+  }
+}
