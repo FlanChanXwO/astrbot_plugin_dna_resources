@@ -1,0 +1,140 @@
+# 资源同步流程
+
+本目录说明 `astrbot_plugin_dna_resources` 各类资源如何同步更新。仓库里每一类素材的来源与更新机制都不同，按下面分类处理，不要混用。
+
+## 资源分类速览
+
+| 目录 | 内容 | 来源 | 更新方式 |
+|---|---|---|---|
+| `images/role_avatar` | 角色头像 31 | 游戏服 API + CDN | **脚本自动**（A） |
+| `images/role_paint` | 角色立绘 29 | 游戏服 API + CDN | **脚本自动**（A） |
+| `images/weapon` | 武器图标 64 | 游戏服 API + CDN | **脚本自动**（A） |
+| `weekly_item` | 周报物品图标 | 周报 API（需有效登录态） | **脚本半自动**（A，凭证受限） |
+| `calendar` | 活动图 | 活动 API `spur/calendar/activity/*` | **脚本半自动**（A 或浏览器抓取） |
+| `wiki/{role,weapon,spirit}` | 图鉴静态图 | DNAUID 上游 | **人工迁移**（B） |
+| `guide/<作者>` | 攻略静态图 | DNAUID 上游 / 攻略组产出 | **人工迁移**（B） |
+| `panel` | 角色详情卡原面板 | 官方卡面人工提取 | **人工**（C） |
+| `alias/` | 角色/武器别名 | 人工维护 | 人工（PR） |
+| `data/redeem_codes.json` | 兑换码 | 历史迁移 + 人工 | 人工（PR） |
+| `fonts/` | 渲染字体 | 静态 | 不动 |
+
+---
+
+## A. 游戏服 API 资源（images / weekly_item / calendar）
+
+### 前置
+
+- 同步脚本：`DNA-analysis/script/sync_dna_resources.py`（与插件工作区同机，不在本仓库）。
+- 运行环境：`astrbot-plugin-dev/.venv`（含 pycryptodome/requests）。
+- 凭证：从已登录插件的数据库中读取，格式 `token:dev_code:d_num:refresh_token`（冒号分隔，作为命令行参数传入；脚本不接收数据库路径）。
+- 网络：首次拉取若直连超时，可临时走 `http://127.0.0.1:7890` 代理。
+
+### 拉取最新角色/武器/立绘
+
+```bash
+# 读取凭证（脱敏使用，用完即删临时文件）
+sqlite3 <插件数据>/dnaby.db \
+  "SELECT cookie||':'||dev_code||':'||d_num||':'||refresh_token FROM dnauser LIMIT 1" \
+  > /tmp/dna_cred.txt
+CRED=$(cat /tmp/dna_cred.txt); rm -f /tmp/dna_cred.txt
+
+# dry-run 预览（不落盘）
+astrbot-plugin-dev/.venv/bin/python \
+  DNA-analysis/script/sync_dna_resources.py \
+  --credential "$CRED" \
+  --out <本仓库根> \
+  --dry-run
+
+# 实际同步
+astrbot-plugin-dev/.venv/bin/python \
+  DNA-analysis/script/sync_dna_resources.py \
+  --credential "$CRED" \
+  --out <本仓库根>
+```
+
+要点（实测）：
+
+- `/role/defaultRoleForTool` 需签名（sa/tn+RSA），且 body 必须带 `userId`（从 JWT payload 解析）；脚本已自动处理。
+- 服务端响应偶发空（角色列表 0），脚本内置 3 次重试；仍空时等 10~20 秒重跑。
+- 凭证的 `d_num` 若过期，`/user/refreshToken` 会失败（222）；**只要现有 token 未失效仍可拉 defaultRoleForTool/getCharDetail**。
+- 角色覆盖：31 头像全有；29 立绘（男主 `120101`/`160101` 服务端不返回立绘，正常）；64 武器全有。
+- `weekly_item` / `calendar` 需要更严格的登录态（`/role/getItemWeeklyReport` 等接口会校验 d_num），当前多数凭证拉不到；周报图缺失时插件会运行时下载，不影响功能。
+
+### 归档活动日历图（calendar/）
+
+活动 API（`/encourage/calendar/Activity/list`）在浏览器上下文可匿名访问，返回活动含 `icon` 字段：
+
+- 16 个活动中仅约 6 个有 `icon`，其余无图（上游如此，非缺漏）。
+- 有图的 URL 形如 `https://herobox-img.yingxiong.com/spur/calendar/activity/<雪花ID>.png`。
+- 插件 `calendar_asset(pic)` 按 URL basename 匹配本地文件；仓库里放 `calendar/<basename>` 即免运行时下载。
+
+---
+
+## B. 图鉴（wiki/）与攻略（guide/）静态素材
+
+### 性质（重要）
+
+- 这些 webp **没有生成 API**，是静态图。
+- 当前仓库内容来自插件内置纹理，而插件内置纹理来自上游 **DNAUID**（`github.com/tyql688/DNAUID`）的 `dna_wiki/texture2d/` 与 `dna_guide/texture2d/`。
+- 覆盖：wiki role 31 / weapon 64 / spirit 26；guide 狩月庭攻略组 15、猫冬 11（仅覆盖 15 个角色有攻略，属攻略组产出限制）。
+- **新角色/新武器/新攻略出现时**：先查上游 DNAUID 是否已更新素材，有则搬入；没有则只能等上游或攻略组产出，无法脚本生成。
+
+### 从上游同步
+
+```bash
+# 1) shallow clone（如网络受限走 127.0.0.1:7890 代理）
+git clone --depth 1 https://github.com/tyql688/DNAUID.git /tmp/dnauid_upstream
+
+# 2) 对比差异（上游 vs 本仓库）
+diff -rq /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/role   <本仓库>/wiki/role
+diff -rq /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/weapon <本仓库>/wiki/weapon
+diff -rq /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/spirit <本仓库>/wiki/spirit
+diff -rq /tmp/dnauid_upstream/DNAUID/dna_guide/texture2d       <本仓库>/guide
+
+# 3) 拷贝新增/变更文件到对应目录（只拷差异，勿整体覆盖）
+cp -n /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/role/*.webp <本仓库>/wiki/role/
+```
+
+- `wiki/` 文件名必须等于角色/武器/魔灵**规范名**（与 `alias/*.json` 的键一致），否则图鉴命令 `wiki_asset()` 解析不到。
+- `guide/` 文件名需**包含角色名**（`resources.guides_for` 按文件名 casefold 包含匹配），并按作者子目录组织（`guide/狩月庭攻略组/`、`guide/猫冬/`）。
+
+---
+
+## C. panel（可选人工素材）
+
+- `panel/{charId}.png` 是角色详情卡（`角色名面板/信息/详情/面包`）的 hero 原面板。
+- 无官方 API 源。缺失时插件渲染自动 fallback：用立绘 `paint` 合成 hero 背景（功能不报错，仅非"官方原面板"效果）。
+- 需要时人工从官方卡面/渠道提取，按 `panel/{charId}.png` 命名放入。
+- 注意命名是 **charId**（如 `1101.png`），不是 `panel_1.png` 这类序号；放错命名插件不会读取。
+
+---
+
+## 提交流程（所有同步后的发布都走 PR）
+
+1. 建独立分支：`git checkout -b sync/<描述>`
+2. 只暂存本类资源改动（勿夹带 .DS_Store、运行数据、编辑器文件）
+3. 提交：标注来源与权利状态（例：`images 来自游戏服 API；wiki 来自 DNAUID 上游`）
+4. PR → 合并。仓库无 branch protection、编辑器 `resource-contract` Check 不一定触发，**合并前本地先过 AGENTS.md 第 5 节验证**。
+
+## 验证清单（同步后必做）
+
+```bash
+# 图片可解码 + 无符号链接
+find . -type l   # 空
+# PIL 解码全部新增图（wiki/guide/webp、images/png）
+# 资源索引解析（用插件 venv）
+PYTHONPATH=astrbot-plugin-dev/data/plugins/astrbot_plugin_dnaby/src \
+  astrbot-plugin-dev/.venv/bin/python -c "
+from infrastructure.resources.encyclopedia import EncyclopediaResourceStore
+s = EncyclopediaResourceStore.from_root('<本仓库根>')
+print(len(s.wiki_assets), len(s.guide_assets))
+assert s.wiki_asset('贝蕾妮卡'), '角色图鉴索引失败'
+"
+```
+
+## 已知边界（如实记录，避免误判）
+
+- 男主（`120101`/`160101`）无官方立绘，`role_paint` 只有 29 张属正常。
+- guide 只覆盖 15 角色；其余 17 角色无攻略是攻略组未产出。
+- 活动图约 6/16 有 icon；calendar 图少是上游如此。
+- 素材权利：wiki/guide/panel 的第三方静态图，公开分发前需确认上游权利（DNAUID 为 GPL-3.0，其携带素材另有归属）。
