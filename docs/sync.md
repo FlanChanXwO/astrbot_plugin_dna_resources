@@ -11,8 +11,8 @@
 | `images/weapon` | 武器图标 64 | 游戏服 API + CDN | **脚本自动**（A） |
 | `weekly_item` | 周报物品图标 | 周报 API（需有效登录态） | **脚本半自动**（A，凭证受限） |
 | `calendar` | 活动图 | 活动 API `spur/calendar/activity/*` | **脚本半自动**（A 或浏览器抓取） |
-| `wiki/{role,weapon,spirit}` | 图鉴静态图 | DNAUID 上游 | **人工迁移**（B） |
-| `guide/<作者>` | 攻略静态图 | DNAUID 上游 / 攻略组产出 | **人工迁移**（B） |
+| `wiki/{role,weapon,spirit}` | 图鉴静态图 | 插件内置/DNAUID 基线 | **人工迁移**（B-wiki） |
+| `guide/<作者>` | 攻略静态图 | B站攻略作者合集 | **脚本自动**（B-guide） |
 | `panel` | 角色详情卡原面板 | 官方卡面人工提取 | **人工**（C） |
 | `alias/` | 角色/武器别名 | 人工维护 | 人工（PR） |
 | `data/redeem_codes.json` | 兑换码 | 历史迁移 + 人工 | 人工（PR） |
@@ -70,33 +70,72 @@ astrbot-plugin-dev/.venv/bin/python \
 
 ---
 
-## B. 图鉴（wiki/）与攻略（guide/）静态素材
+## B-wiki. 图鉴（wiki/）静态素材
 
-### 性质（重要）
-
-- 这些 webp **没有生成 API**，是静态图。
-- 当前仓库内容来自插件内置纹理，而插件内置纹理来自上游 **DNAUID**（`github.com/tyql688/DNAUID`）的 `dna_wiki/texture2d/` 与 `dna_guide/texture2d/`。
-- 覆盖：wiki role 31 / weapon 64 / spirit 26；guide 狩月庭攻略组 15、猫冬 11（仅覆盖 15 个角色有攻略，属攻略组产出限制）。
-- **新角色/新武器/新攻略出现时**：先查上游 DNAUID 是否已更新素材，有则搬入；没有则只能等上游或攻略组产出，无法脚本生成。
-
-### 从上游同步
+- 图鉴 webp **没有生成 API**，是静态图；当前内容来自插件内置纹理（源自 DNAUID 基线，2026-08）。
+- 覆盖：wiki role 31 / weapon 64 / spirit 26。
+- 新角色/新武器图鉴目前无自动渠道——需要时从 DNAUID 上游（`github.com/tyql688/DNAUID`，`dna_wiki/texture2d/`）或游戏社区产出迁移：
 
 ```bash
-# 1) shallow clone（如网络受限走 127.0.0.1:7890 代理）
 git clone --depth 1 https://github.com/tyql688/DNAUID.git /tmp/dnauid_upstream
-
-# 2) 对比差异（上游 vs 本仓库）
-diff -rq /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/role   <本仓库>/wiki/role
-diff -rq /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/weapon <本仓库>/wiki/weapon
-diff -rq /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/spirit <本仓库>/wiki/spirit
-diff -rq /tmp/dnauid_upstream/DNAUID/dna_guide/texture2d       <本仓库>/guide
-
-# 3) 拷贝新增/变更文件到对应目录（只拷差异，勿整体覆盖）
+diff -rq /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/role <本仓库>/wiki/role
 cp -n /tmp/dnauid_upstream/DNAUID/dna_wiki/texture2d/role/*.webp <本仓库>/wiki/role/
 ```
 
 - `wiki/` 文件名必须等于角色/武器/魔灵**规范名**（与 `alias/*.json` 的键一致），否则图鉴命令 `wiki_asset()` 解析不到。
+
+---
+
+## B-guide. 攻略（guide/）静态素材 —— 来自 B 站攻略作者（持续更新）
+
+### 作者与图源（2026-09 实测验证）
+
+| 作者 | B站 | 合集 | 攻略图位置 | 图特征 |
+|---|---|---|---|---|
+| **狩月庭攻略组** | mid 3546915226519877 | 合集 6985158 | 角色视频**评论区**"XX养成一图流"回复 | 1080 宽竖长图 |
+| **猫冬MT** | mid 91489061 | 合集 7015403「两个陀螺」 | 角色视频**封面** | 2560×1440 |
+
+- 两处图已抽样验证与仓库 `guide/` 中现有文件尺寸/内容对应（如莉兹贝尔 1080×9500、妮弗尔夫人 1080×7300、扶疏 2560×1440）。
+- 作者会持续发布新角色攻略视频；**新角色出现时用脚本同步即可**，无需等插件仓库更新。
+
+### 同步脚本（推荐）
+
+```bash
+# 脚本：DNA-analysis/script/sync_bili_guide.py（与资源仓库同机）
+
+# dry-run 预览
+astrbot-plugin-dev/.venv/bin/python \
+  DNA-analysis/script/sync_bili_guide.py --out <本仓库> --dry-run
+
+# 实际同步（只补缺失角色，不覆盖已有）
+astrbot-plugin-dev/.venv/bin/python \
+  DNA-analysis/script/sync_bili_guide.py --out <本仓库>
+
+# 只同步某作者 / 强制覆盖
+... --author 狩月庭攻略组
+... --force   # 覆盖已存在同名图（会重拉全量，慎用）
+```
+
+行为：
+- 拉两合集全部视频 → 按标题关键词识别角色 → 狩月庭翻评论找竖长图、猫冬取封面 → 存 `guide/<作者>/<角色>.webp`。
+- 已存在角色跳过（保留本地/修订版）；评论只有横版图时跳过（宁缺毋滥，等作者发正式一图流）。
+- 狩月庭评论图 URL 含作者 mid 片段，可用于人工核对。
+
+### 手工对比（备选，不用脚本时）
+
+```bash
+git clone --depth 1 https://github.com/tyql688/DNAUID.git /tmp/dnauid_upstream
+diff -rq /tmp/dnauid_upstream/DNAUID/dna_guide/texture2d <本仓库>/guide
+cp -n /tmp/dnauid_upstream/DNAUID/dna_guide/texture2d/<作者>/*.webp <本仓库>/guide/<作者>/
+```
+
+- 上游 DNAUID 仓库仍保有 guide 素材基线，但**作者本人已在 B 站持续更新**，应以 B 站为准。
 - `guide/` 文件名需**包含角色名**（`resources.guides_for` 按文件名 casefold 包含匹配），并按作者子目录组织（`guide/狩月庭攻略组/`、`guide/猫冬/`）。
+
+### 覆盖范围说明
+
+- 当前 guide 仅覆盖部分角色（如狩月庭 15、猫冬 11）；无攻略角色是作者尚未发布对应视频，不是搬运遗漏。
+- 作者已发布但评论无正式长图的角色（如个别新角色只有横版配置图），脚本会跳过——需作者补发一图流后再同步。
 
 ---
 

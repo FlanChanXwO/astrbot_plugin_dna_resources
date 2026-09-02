@@ -50,12 +50,12 @@ calendar/         # 活动图（文件名=URL basename）
 - 覆盖情况：role_avatar 31、role_paint 29（男主 120101/160101 服务端无立绘）、weapon 64。
 - 新角色/武器出现：**重跑脚本即可**，接口自动下发新 ID 与 URL。
 
-### 3.2 静态人工素材（wiki/ guide/ panel/ 一部分）
+### 3.2 静态素材（wiki/ guide/ panel/ 一部分）
 
-- wiki 图鉴图与 guide 攻略图**没有生成 API**，是老插件 DNAUID（`github.com/tyql688/DNAUID`）携带的静态 webp；新角色/新攻略出现**只能等上游产出后人工搬入**。
-- 上游 DNAUID 仓库是这些静态素材的持续渠道：定期 `git fetch` 上游 `DNAUID/dna_wiki`、`DNAUID/dna_guide` 对比差异，把新增/变更图迁入本仓库对应目录。
-- guide 覆盖不全（当前仅 15/32 角色有攻略）是攻略组产出限制，不是搬运遗漏。
-- panel 无官方 API 源，需人工从官方卡面/渠道提取，按 `panel/{charId}.png` 命名。
+- **guide 攻略图**：持续来源是 **B 站攻略作者合集**（狩月庭攻略组 mid 3546915226519877 合集 6985158 → 评论区"一图流"长图；猫冬MT mid 91489061 合集 7015403 → 视频封面 2560×1440）。用 `DNA-analysis/script/sync_bili_guide.py` 同步（拉合集→识别角色→下载→存 `guide/<作者>/<角色>.webp`），作者发新视频即可跟更。
+- **wiki 图鉴图**：没有生成 API，静态图；新角色图鉴需从 DNAUID 上游（`dna_wiki/texture2d/`）或社区产出迁移。
+- **panel**：无官方 API 源，需人工提取并按 `panel/{charId}.png` 命名（注意是 charId 不是序号）。
+- guide/wiki/panel 的第三方静态图权利未确认前，不得宣称"已清权可公开分发"。
 
 ### 3.3 素材权利
 
@@ -114,7 +114,8 @@ print(len(s.wiki_assets), s.wiki_asset('贝蕾妮卡'))
 | 任务 | 做法 |
 |---|---|
 | 新角色头像/立绘/武器图 | 跑 sync_dna_resources.py（3.1），PR 提交新增文件 |
-| 图鉴/攻略缺某角色 | 检查上游 DNAUID 是否有 → 搬入对应目录 → 第 5 节验证 → PR |
+| 攻略缺某角色 | 跑 sync_bili_guide.py（B站作者合集）→ 第 5 节验证 → PR |
+| 图鉴缺某角色/武器 | 检查上游 DNAUID dna_wiki 是否有 → 搬入对应目录 → 第 5 节验证 → PR |
 | 兑换码更新 | 只改 data/redeem_codes.json，遵守 schema/语义，走 PR |
 | 角色别名/武器别名 | 改 alias/*.json，避免歧义，走 PR |
 | 想加新资源类型 | 先查插件消费方是否支持该路径，否则不做 |
