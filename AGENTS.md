@@ -20,7 +20,7 @@
 ```
 fonts/            # 渲染字体（dna_fonts.ttf 等）
 images/           # 角色头像 role_avatar/{charId}.png、立绘 role_paint/{charId}.png、武器 weapon/{weaponId}.png
-panel/            # 角色详情卡 hero 原面板 panel/{charId}.png（可选；缺失时渲染 fallback 用立绘合成）
+panel/            # 卡片通用背景图（如 panel_1.png…，横版大图；非角色专属）
 alias/            # char_alias.json / weapon_alias.json（别名）
 data/             # redeem_codes.json（兑换码 v1，唯一权威源）+ schemas/ 校验
 schemas/          # redeem-codes.v1.schema.json
@@ -54,8 +54,7 @@ calendar/         # 活动图（文件名=URL basename）
 
 - **guide 攻略图**：持续来源是 **B 站攻略作者合集**（狩月庭攻略组 mid 3546915226519877 合集 6985158 → 评论区"一图流"长图；猫冬MT mid 91489061 合集 7015403 → 视频封面 2560×1440）。用 `DNA-analysis/script/sync_bili_guide.py` 同步（拉合集→识别角色→下载→存 `guide/<作者>/<角色>.webp`），作者发新视频即可跟更。
 - **wiki 图鉴图**：没有生成 API，静态图；新角色图鉴需从 DNAUID 上游（`dna_wiki/texture2d/`）或社区产出迁移。
-- **panel**：无官方 API 源，需人工提取并按 `panel/{charId}.png` 命名（注意是 charId 不是序号）。
-- guide/wiki/panel 的第三方静态图权利未确认前，不得宣称"已清权可公开分发"。
+- **panel**：卡片通用背景图（`panel_N.png` 横版），非角色专属；无官方 API 源，人工补充。
 
 ### 3.3 素材权利
 

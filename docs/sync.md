@@ -13,7 +13,7 @@
 | `calendar` | 活动图 | 活动 API `spur/calendar/activity/*` | **脚本半自动**（A 或浏览器抓取） |
 | `wiki/{role,weapon,spirit}` | 图鉴静态图 | 插件内置/DNAUID 基线 | **人工迁移**（B-wiki） |
 | `guide/<作者>` | 攻略静态图 | B站攻略作者合集 | **脚本自动**（B-guide） |
-| `panel` | 角色详情卡原面板 | 官方卡面人工提取 | **人工**（C） |
+| `panel` | 卡片通用背景图 | 人工收集 | **人工**（C） |
 | `alias/` | 角色/武器别名 | 人工维护 | 人工（PR） |
 | `data/redeem_codes.json` | 兑换码 | 历史迁移 + 人工 | 人工（PR） |
 | `fonts/` | 渲染字体 | 静态 | 不动 |
@@ -139,12 +139,11 @@ cp -n /tmp/dnauid_upstream/DNAUID/dna_guide/texture2d/<作者>/*.webp <本仓库
 
 ---
 
-## C. panel（可选人工素材）
+## C. panel（卡片通用背景图）
 
-- `panel/{charId}.png` 是角色详情卡（`角色名面板/信息/详情/面包`）的 hero 原面板。
-- 无官方 API 源。缺失时插件渲染自动 fallback：用立绘 `paint` 合成 hero 背景（功能不报错，仅非"官方原面板"效果）。
-- 需要时人工从官方卡面/渠道提取，按 `panel/{charId}.png` 命名放入。
-- 注意命名是 **charId**（如 `1101.png`），不是 `panel_1.png` 这类序号；放错命名插件不会读取。
+- `panel/` 放卡片**通用背景图**（横版大图，如 `panel_1.png`、`panel_2.png`…）。
+- **非角色专属**：不再按 `panel/{charId}.png` 角色命名；用途由插件渲染层决定（作为 hero/卡片背景）。
+- 无官方 API 源，人工收集/制作后放入即可；generation 校验（`_ASSET_ROOTS` 含 panel）只要求图片可解码。
 
 ---
 
